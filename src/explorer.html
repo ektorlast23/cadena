@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cadena · explorador en vivo</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #121722;
+    --panel-2: #0f141d;
+    --line: #1f2837;
+    --text: #dbe4f0;
+    --muted: #7d8aa0;
+    --accent: #6ee7b7;
+    --accent-2: #7aa2ff;
+    --danger: #f87171;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at 70% -10%, #16233a 0%, var(--bg) 55%);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 20px 28px; border-bottom: 1px solid var(--line);
+    background: rgba(11, 14, 20, .7); backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand h1 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+  .brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 14px var(--accent);
+  }
+  .tag { color: var(--muted); font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+  .live { font: 12px var(--mono); color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .live::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+  .live.on::before { background: var(--accent); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px; display: grid; gap: 18px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  }
+  .stat .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .stat .value { font: 600 20px var(--mono); margin-top: 6px; word-break: break-all; }
+  .stat.wide { grid-column: span 2; }
+  .stat.wide .value { font-size: 13px; color: var(--accent-2); }
+  .panel { background: linear-gradient(180deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .panel-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .muted { color: var(--muted); font: 12px var(--mono); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 18px; }
+  .controls label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+  select, input[type="text"] {
+    background: #0a0f18; color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font: 13px var(--mono); outline: none;
+  }
+  input[type="text"] { flex: 1; min-width: 260px; }
+  select:focus, input:focus { border-color: var(--accent-2); }
+  button {
+    background: var(--accent); color: #06251b; border: 0; border-radius: 8px;
+    padding: 9px 16px; font: 600 13px system-ui; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .check { user-select: none; }
+  .status { font: 12px var(--mono); color: var(--muted); }
+  .status.error { color: var(--danger); }
+  .balance { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+  .balance b { color: var(--text); }
+  .list { display: grid; gap: 8px; padding: 14px 18px; }
+  .tx {
+    display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px 52px; gap: 10px;
+    align-items: center; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; background: #0a0f18; font: 12px var(--mono);
+  }
+  .flow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .flow b { color: var(--text); font-weight: 500; }
+  .flow b.cb { color: var(--accent); }
+  .amount { color: var(--accent); text-align: right; }
+  .fee { color: var(--muted); text-align: right; }
+  .nonce { color: #55637a; text-align: right; }
+  .blocks { display: grid; gap: 10px; padding: 14px 18px; }
+  .block { border: 1px solid var(--line); border-radius: 10px; background: #0a0f18; overflow: hidden; }
+  .block.fresh { border-color: rgba(110, 231, 183, .45); box-shadow: 0 0 0 1px rgba(110, 231, 183, .12), 0 0 24px rgba(110, 231, 183, .06); }
+  .block header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .num { font: 600 13px var(--mono); color: var(--accent); }
+  .hash { font: 12px var(--mono); color: var(--accent-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { display: flex; flex-wrap: wrap; gap: 14px; padding: 8px 14px; color: var(--muted); font: 11px var(--mono); border-bottom: 1px solid var(--line); }
+  .txs { display: grid; }
+  .txs .tx { border: 0; border-bottom: 1px solid rgba(31, 40, 55, .6); border-radius: 0; }
+  .txs .tx:last-child { border-bottom: 0; }
+  .empty { margin: 0; padding: 14px 18px; color: var(--muted); font: 12px var(--mono); }
+  footer { text-align: center; color: #4a566b; font: 11px var(--mono); padding: 26px; }
+  @media (max-width: 640px) {
+    .stat.wide { grid-column: span 1; }
+    .tx { grid-template-columns: minmax(0, 1fr) 64px; }
+    .fee, .nonce { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>cadena</h1>
+    <span class="tag">explorador en vivo</span>
+  </div>
+  <div id="live" class="live">conectando…</div>
+</header>
+
+<main>
+  <section class="stats" id="stats"></section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Minería</h2>
+      <span id="status" class="status">listo</span>
+    </div>
+    <div class="controls">
+      <label>Wallet
+        <select id="wallet"><option value="">— sin wallets —</option></select>
+      </label>
+      <input id="miner" type="text" placeholder="o pegá una dirección (64 hex)" spellcheck="false" autocomplete="off">
+      <button id="mine">Minar bloque</button>
+      <label class="check"><input type="checkbox" id="auto"> Auto cada 5s</label>
+      <span class="balance">Saldo <b id="balance">—</b></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Mempool</h2>
+      <span id="mempool-count" class="muted"></span>
+    </div>
+    <div id="mempool" class="list"><p class="empty">Conectando…</p></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Bloques</h2>
+      <span id="block-count" class="muted"></span>
+    </div>
+    <div id="blocks" class="blocks"><p class="empty">Conectando…</p></div>
+  </section>
+</main>
+
+<footer>SHA-256 · Ed25519 · estado en data/chain.json</footer>
+
+<script>
+const el = (id) => document.getElementById(id);
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[char]));
+const short = (value, length = 16) => value ? value.slice(0, length) + '…' : '—';
+const ADDRESS = /^[0-9a-f]{64}$/;
+
+let selected = '';
+let autoTimer = null;
+let lastUpdate = 0;
+
+function setStatus(text, isError = false) {
+  const node = el('status');
+  node.textContent = text;
+  node.classList.toggle('error', isError);
+}
+
+function setLive(on) {
+  const node = el('live');
+  node.classList.toggle('on', on);
+  node.textContent = on ? 'en vivo' : 'reconectando…';
+}
+
+function timeAgo(timestamp) {
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return seconds + 's';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return minutes + 'm';
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return hours + 'h';
+  return Math.round(hours / 24) + 'd';
+}
+
+function stat(label, value, wide = false) {
+  return '<div class="stat' + (wide ? ' wide' : '') + '">' +
+    '<div class="label">' + esc(label) + '</div>' +
+    '<div class="value">' + esc(value) + '</div></div>';
+}
+
+function renderStats(chain, pending) {
+  const last = chain.blocks[chain.blocks.length - 1];
+  el('stats').innerHTML =
+    stat('Altura', chain.height) +
+    stat('Dificultad', chain.nextDifficulty) +
+    stat('Pendientes', pending.length) +
+    stat('Suministro', chain.totalSupply) +
+    stat('Último hash', last ? last.hash : '—', true);
+}
+
+function txRow(tx) {
+  const coinbase = tx.from === 'COINBASE';
+  const flow = coinbase
+    ? '<b class="cb">recompensa</b> → <b>' + esc(short(tx.to, 12)) + '</b>'
+    : '<b>' + esc(short(tx.from, 12)) + '</b> → <b>' + esc(short(tx.to, 12)) + '</b>';
+  return '<div class="tx">' +
+    '<span class="flow">' + flow + '</span>' +
+    '<span class="amount">+' + esc(tx.amount) + '</span>' +
+    '<span class="fee">' + (tx.fee ? 'fee ' + esc(tx.fee) : '—') + '</span>' +
+    '<span class="nonce">n' + esc(tx.nonce) + '</span>' +
+    '</div>';
+}
+
+function blockCard(block, newest) {
+  const rows = block.transactions.map(txRow).join('');
+  return '<article class="block' + (newest ? ' fresh' : '') + '">' +
+    '<header><span class="num">#' + esc(block.index) + '</span>' +
+    '<code class="hash">' + esc(block.hash) + '</code></header>' +
+    '<div class="meta"><span>dif ' + esc(block.difficulty) + '</span>' +
+    '<span>nonce ' + esc(block.nonce) + '</span>' +
+    '<span>' + block.transactions.length + ' tx</span>' +
+    '<span>hace ' + timeAgo(block.timestamp) + '</span></div>' +
+    '<div class="txs">' + (rows || '<p class="empty">bloque génesis</p>') + '</div>' +
+    '</article>';
+}
+
+function renderBlocks(chain) {
+  const blocks = [...chain.blocks].reverse();
+  el('block-count').textContent = blocks.length + ' bloques';
+  el('blocks').innerHTML = blocks.map((block, index) => blockCard(block, index === 0)).join('');
+}
+
+function renderMempool(pending) {
+  el('mempool-count').textContent = pending.length + ' pendientes';
+  el('mempool').innerHTML = pending.length
+    ? pending.map(txRow).join('')
+    : '<p class="empty">Sin transacciones pendientes.</p>';
+}
+
+function renderWallets(wallets) {
+  const select = el('wallet');
+  const current = select.value || selected;
+  select.innerHTML = '<option value="">— elegir —</option>' +
+    wallets.map((wallet) => '<option value="' + esc(wallet.address) + '">' + esc(wallet.name) + '</option>').join('');
+  if (current && wallets.some((wallet) => wallet.address === current)) select.value = current;
+  else if (wallets.length === 1) select.value = wallets[0].address;
+  selected = select.value;
+}
+
+async function refresh() {
+  try {
+    const [chain, mempool, walletList] = await Promise.all([
+      fetch('/chain').then((response) => response.json()),
+      fetch('/mempool').then((response) => response.json()),
+      fetch('/wallets').then((response) => response.json()),
+    ]);
+    const pending = mempool.transactions || [];
+    const wallets = walletList.wallets || [];
+
+    renderStats(chain, pending);
+    renderWallets(wallets);
+    renderMempool(pending);
+    renderBlocks(chain);
+    lastUpdate = Date.now();
+
+    if (selected) {
+      const balance = await fetch('/balance/' + selected).then((response) => response.json());
+      el('balance').textContent = balance.balance + ' (disp. ' + balance.available + ')';
+    } else {
+      el('balance').textContent = '—';
+    }
+    setLive(true);
+  } catch {
+    setLive(false);
+  }
+}
+
+async function mine() {
+  const miner = el('wallet').value || el('miner').value.trim();
+  if (!ADDRESS.test(miner)) {
+    setStatus('Elegí una wallet o pegá una dirección válida', true);
+    return;
+  }
+  el('mine').disabled = true;
+  setStatus('minando…');
+  try {
+    const response = await fetch('/mine', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ miner }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'no se pudo minar');
+    setStatus('bloque #' + data.block.index + ' minado · nonce ' + data.block.nonce);
+    await refresh();
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    el('mine').disabled = false;
+  }
+}
+
+el('mine').addEventListener('click', mine);
+
+el('wallet').addEventListener('change', (event) => {
+  selected = event.target.value;
+  el('miner').value = '';
+  refresh();
+});
+
+el('auto').addEventListener('change', (event) => {
+  if (autoTimer) clearInterval(autoTimer);
+  autoTimer = null;
+  if (event.target.checked) autoTimer = setInterval(mine, 5000);
+});
+
+const events = new EventSource('/events');
+events.onopen = () => setLive(true);
+events.onerror = () => setLive(false);
+events.addEventListener('block', () => refresh());
+events.addEventListener('transaction', () => refresh());
+events.addEventListener('sync', () => refresh());
+
+setInterval(refresh, 4000);
+refresh();
+</script>
+</body>
+</html>

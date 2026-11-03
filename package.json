@@ -1,0 +1,22 @@
+{
+  "name": "cadena",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blockchain demo en TypeScript: PoW, transacciones firmadas, API HTTP, CLI y persistencia",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/cli.ts serve",
+    "serve": "node src/cli.ts serve",
+    "demo": "node src/cli.ts demo",
+    "watch": "node src/cli.ts watch",
+    "test": "node --test test/crypto.test.ts test/transaction.test.ts test/chain.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
