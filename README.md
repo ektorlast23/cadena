@@ -1,5 +1,7 @@
 # cadena
 
+[![CI](https://github.com/ektorlast23/cadena/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ektorlast23/cadena/actions/workflows/ci.yml)
+
 Tres componentes:
 
 - **`network/`**: red EVM permissionada real (Hyperledger Besu + QBFT, 4 validadores,
@@ -144,6 +146,16 @@ npm install
 npm test
 npm run typecheck
 ```
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) ejecuta en cada push y pull request:
+
+- Demo: `npm run typecheck` + 20 tests.
+- Contratos: `npm run typecheck` + 9 tests.
+- Red: valida `docker-compose.yml`, el entrypoint y la sintaxis de los scripts PowerShell.
+
+Dependabot revisa semanalmente dependencias npm y GitHub Actions (`.github/dependabot.yml`).
 
 ## Límites conocidos
 
