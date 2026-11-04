@@ -1,5 +1,41 @@
 # cadena
 
+Tres componentes:
+
+- **`network/`**: red EVM permissionada real (Hyperledger Besu + QBFT, 4 validadores,
+  Chain ID 7331). Es el camino de produccion.
+- **`contracts/`**: proyecto Solidity + Hardhat 3 para desplegar contratos en esa red.
+- **`src/` + `test/`**: demo educativa en TypeScript (PoW, un nodo, Ed25519). Se conserva
+  como referencia.
+
+## Red EVM principal
+
+```powershell
+Set-Location H:\blockChain\network
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\generate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\up.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\status.ps1
+```
+
+RPC: `http://127.0.0.1:8545` | Chain ID: `7331` | Simbolo: `CAD`.
+
+Detalles, operacion, permissioning y checklist de produccion en
+[`network/README.md`](network/README.md).
+
+## Contratos inteligentes
+
+```powershell
+Set-Location H:\blockChain\contracts
+npm install
+npm run test
+npm run deploy:cadena
+```
+
+Solidity + Hardhat 3 con contratos de ejemplo `Counter` y `Registro` (documentos con
+`Ownable` de OpenZeppelin). Detalles en [`contracts/README.md`](contracts/README.md).
+
+## Demo educativa (legacy)
+
 Blockchain demo funcional en TypeScript puro (sin dependencias de runtime): bloques con
 prueba de trabajo, transacciones firmadas con Ed25519, API HTTP, CLI, persistencia en JSON
 y tests con el runner nativo de Node.
