@@ -31,8 +31,8 @@ se conserva como referencia educativa.
 
 - Docker Desktop corriendo (backend Linux)
 - 8 GB de RAM disponibles para los 4 nodos (`JAVA_OPTS=-Xmx2g` por nodo)
-- PowerShell 5.1+
-- La unidad `H:` compartida con Docker Desktop (Settings > Resources > File sharing)
+- PowerShell 5.1+ en Windows, o PowerShell 7+ (`pwsh`) en Linux/macOS
+- En Windows, la unidad `H:` compartida con Docker Desktop (Settings > Resources > File sharing)
 
 Las imagenes y volumenes de Docker siguen en la unidad configurada en Docker Desktop
 (por defecto `C:`). Solo el proyecto vive en `H:\blockChain`.

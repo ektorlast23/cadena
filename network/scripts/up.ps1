@@ -2,13 +2,17 @@
 param()
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $required = @(
     (Join-Path $root ".env"),
-    (Join-Path $root "config\genesis.json"),
-    (Join-Path $root "config\permissions\permissions_config.toml"),
-    (Join-Path $root "config\permissions\static-nodes.json"),
-    (Join-Path $root "config\keys\key1\key")
+    (Join-Path $root "config/genesis.json"),
+    (Join-Path $root "config/permissions/permissions_config.toml"),
+    (Join-Path $root "config/permissions/static-nodes.json"),
+    (Join-Path $root "config/keys/key1/key")
 )
 
 foreach ($path in $required) {

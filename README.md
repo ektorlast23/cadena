@@ -155,6 +155,10 @@ GitHub Actions (`.github/workflows/ci.yml`) ejecuta en cada push y pull request:
 - Contratos: `npm run typecheck` + 9 tests.
 - Red: valida `docker-compose.yml`, el entrypoint y la sintaxis de los scripts PowerShell.
 
+La prueba integral (`.github/workflows/integration.yml`) corre manualmente o cada lunes:
+genera y levanta la red Besu, despliega los contratos, ejecuta la demo y el smoke test EVM,
+y baja la red. Los logs se publican como artefacto si falla.
+
 Dependabot revisa semanalmente dependencias npm y GitHub Actions (`.github/dependabot.yml`).
 
 ## Límites conocidos

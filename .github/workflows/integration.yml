@@ -1,0 +1,67 @@
+name: Integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration
+  cancel-in-progress: false
+
+jobs:
+  network-contracts:
+    name: Red + contratos
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Generar red
+        shell: pwsh
+        run: ./network/scripts/generate.ps1
+
+      - name: Levantar red
+        shell: pwsh
+        run: ./network/scripts/up.ps1
+
+      - name: Instalar contratos
+        working-directory: contracts
+        run: npm ci
+
+      - name: Desplegar y probar contratos
+        working-directory: contracts
+        run: |
+          npm run deploy:cadena
+          npm run demo:cadena
+
+      - name: Smoke test EVM
+        working-directory: network/tools
+        run: |
+          npm ci
+          node evm-smoke-test.mjs
+
+      - name: Guardar logs
+        if: failure()
+        working-directory: network
+        run: docker compose logs --no-color > ../network-logs.txt || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: network-logs
+          path: network-logs.txt
+          if-no-files-found: ignore
+
+      - name: Bajar red
+        if: always()
+        shell: pwsh
+        continue-on-error: true
+        run: ./network/scripts/down.ps1

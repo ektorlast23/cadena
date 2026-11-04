@@ -4,6 +4,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $root = Split-Path -Parent $PSScriptRoot
 $configDir = Join-Path $root "config"
@@ -13,6 +16,14 @@ $devDir = Join-Path $configDir "dev-account"
 $permissionsDir = Join-Path $configDir "permissions"
 $envFile = Join-Path $root ".env"
 $dataDir = Join-Path $root "data"
+
+$isWindowsHost = $env:OS -eq "Windows_NT"
+$dockerRunArgs = @()
+if (-not $isWindowsHost) {
+    $uid = (& id -u).Trim()
+    $gid = (& id -g).Trim()
+    $dockerRunArgs = @("--user", "${uid}:${gid}", "-e", "HOME=/tmp")
+}
 
 function Fail([string]$Message) {
     throw $Message
@@ -57,7 +68,7 @@ for ($attempt = 1; $attempt -le 3; $attempt++) {
         Remove-Item -LiteralPath $devAddressPath -Force
     }
 
-    & docker run --rm --mount "type=bind,source=$devDir,target=/config/dev-account" $BesuImage public-key export-address --node-private-key-file=/config/dev-account/key --to=/config/dev-account/address 2>$null | Out-Null
+    & docker run --rm @dockerRunArgs --mount "type=bind,source=$devDir,target=/config/dev-account" $BesuImage public-key export-address --node-private-key-file=/config/dev-account/key --to=/config/dev-account/address 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $devAddressPath)) {
         $candidate = (Get-Content -LiteralPath $devAddressPath -Raw).Trim()
@@ -88,7 +99,7 @@ $runtimeConfig = Join-Path $configDir "qbftConfigFile.runtime.json"
 $runtimeJson = $configJson | ConvertTo-Json -Depth 20
 [System.IO.File]::WriteAllText($runtimeConfig, $runtimeJson, (New-Object System.Text.UTF8Encoding($false)))
 
-& docker run --rm --mount "type=bind,source=$configDir,target=/config" $BesuImage operator generate-blockchain-config --config-file=/config/qbftConfigFile.runtime.json --to=/config/networkFiles --private-key-file-name=key
+& docker run --rm @dockerRunArgs --mount "type=bind,source=$configDir,target=/config" $BesuImage operator generate-blockchain-config --config-file=/config/qbftConfigFile.runtime.json --to=/config/networkFiles --private-key-file-name=key
 $operatorExit = $LASTEXITCODE
 
 $genesisPath = Join-Path $networkFiles "genesis.json"
@@ -191,10 +202,10 @@ if (Test-Path -LiteralPath $networkFiles) {
 
 Write-Host ""
 Write-Host "Red generada."
-Write-Host "  Genesis:            $configDir\genesis.json"
+Write-Host "  Genesis:            $(Join-Path $configDir 'genesis.json')"
 Write-Host "  Claves validadores: $keysDir"
 Write-Host "  Cuenta desarrollo:  $devDir"
 Write-Host "  Direccion:          $address"
 Write-Host ""
 Write-Host "Respalda config/keys y config/dev-account: sin ellas no podes reiniciar la red."
-Write-Host "Siguiente paso: .\scripts\up.ps1"
+Write-Host "Siguiente paso: scripts/up.ps1"
