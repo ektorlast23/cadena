@@ -1,0 +1,92 @@
+name: cadena-network
+
+x-besu-common: &besu-common
+  image: ${BESU_IMAGE:-hyperledger/besu:26.11.0}
+  restart: unless-stopped
+  stop_grace_period: 30s
+  entrypoint: ["/bin/sh", "/config/scripts/besu-entrypoint.sh"]
+  environment:
+    BESU_LOG_LEVEL: "${BESU_LOG_LEVEL:-INFO}"
+    BESU_EXTRA_ARGS: "${BESU_EXTRA_ARGS:-}"
+    RPC_HTTP_API: "${RPC_HTTP_API:-ETH,NET,QBFT,WEB3,TXPOOL}"
+    JAVA_OPTS: "${JAVA_OPTS:--Xmx2g}"
+  networks:
+    - cadena
+  volumes:
+    - ./scripts/besu-entrypoint.sh:/config/scripts/besu-entrypoint.sh:ro
+    - ./config/genesis.json:/config/genesis.json:ro
+    - ./config/permissions:/config/permissions:ro
+
+services:
+  validator1:
+    <<: *besu-common
+    container_name: cadena-validator1
+    networks:
+      cadena:
+        ipv4_address: 172.28.0.11
+    volumes:
+      - ./scripts/besu-entrypoint.sh:/config/scripts/besu-entrypoint.sh:ro
+      - ./config/genesis.json:/config/genesis.json:ro
+      - ./config/permissions:/config/permissions:ro
+      - ./config/keys/key1:/config/nodekey:ro
+      - ./data/validator1:/data
+    ports:
+      - "127.0.0.1:8545:8545"
+      - "127.0.0.1:8546:8546"
+      - "127.0.0.1:9545:9545"
+
+  validator2:
+    <<: *besu-common
+    container_name: cadena-validator2
+    networks:
+      cadena:
+        ipv4_address: 172.28.0.12
+    volumes:
+      - ./scripts/besu-entrypoint.sh:/config/scripts/besu-entrypoint.sh:ro
+      - ./config/genesis.json:/config/genesis.json:ro
+      - ./config/permissions:/config/permissions:ro
+      - ./config/keys/key2:/config/nodekey:ro
+      - ./data/validator2:/data
+    ports:
+      - "127.0.0.1:8547:8545"
+      - "127.0.0.1:9546:9545"
+
+  validator3:
+    <<: *besu-common
+    container_name: cadena-validator3
+    networks:
+      cadena:
+        ipv4_address: 172.28.0.13
+    volumes:
+      - ./scripts/besu-entrypoint.sh:/config/scripts/besu-entrypoint.sh:ro
+      - ./config/genesis.json:/config/genesis.json:ro
+      - ./config/permissions:/config/permissions:ro
+      - ./config/keys/key3:/config/nodekey:ro
+      - ./data/validator3:/data
+    ports:
+      - "127.0.0.1:8548:8545"
+      - "127.0.0.1:9547:9545"
+
+  validator4:
+    <<: *besu-common
+    container_name: cadena-validator4
+    networks:
+      cadena:
+        ipv4_address: 172.28.0.14
+    volumes:
+      - ./scripts/besu-entrypoint.sh:/config/scripts/besu-entrypoint.sh:ro
+      - ./config/genesis.json:/config/genesis.json:ro
+      - ./config/permissions:/config/permissions:ro
+      - ./config/keys/key4:/config/nodekey:ro
+      - ./data/validator4:/data
+    ports:
+      - "127.0.0.1:8549:8545"
+      - "127.0.0.1:9548:9545"
+
+networks:
+  cadena:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+

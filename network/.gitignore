@@ -1,0 +1,13 @@
+# Generado localmente por scripts/generate.ps1
+.env
+data/
+config/genesis.json
+config/keys/
+config/dev-account/
+config/networkFiles/
+config/qbftConfigFile.runtime.json
+config/permissions/permissions_config.toml
+config/permissions/static-nodes.json
+
+# Dependencias de tooling
+node_modules/
