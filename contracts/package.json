@@ -1,0 +1,34 @@
+{
+  "name": "cadena-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Contratos Solidity para la red EVM Cadena (Besu QBFT)",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "typecheck": "tsc --noEmit",
+    "deploy:cadena": "hardhat run scripts/deploy.ts --network cadena",
+    "demo:cadena": "hardhat run scripts/registro-demo.ts --network cadena",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^4.0.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.19.2",
+    "chai": "^5.3.3",
+    "ethers": "^6.17.0",
+    "hardhat": "^3.21.2",
+    "mocha": "^12.0.3",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "cadena-evm-smoke-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node evm-smoke-test.mjs"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  }
+}

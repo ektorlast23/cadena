@@ -1,0 +1,6 @@
+---
+luna_client_local_package: ""
+luna_client_package_url: ""
+luna_client_package_checksum: ""
+luna_client_gpgcheck: false
+luna_client_validate: true

@@ -1,5 +1,43 @@
 # cadena
 
+[![CI](https://github.com/ektorlast23/cadena/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ektorlast23/cadena/actions/workflows/ci.yml)
+
+Tres componentes:
+
+- **`network/`**: red EVM permissionada real (Hyperledger Besu + QBFT, 4 validadores,
+  Chain ID 7331). Es el camino de produccion.
+- **`contracts/`**: proyecto Solidity + Hardhat 3 para desplegar contratos en esa red.
+- **`src/` + `test/`**: demo educativa en TypeScript (PoW, un nodo, Ed25519). Se conserva
+  como referencia.
+
+## Red EVM principal
+
+```powershell
+Set-Location H:\blockChain\network
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\generate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\up.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\status.ps1
+```
+
+RPC: `http://127.0.0.1:8545` | Chain ID: `7331` | Simbolo: `CAD`.
+
+Detalles, operacion, permissioning y checklist de produccion en
+[`network/README.md`](network/README.md).
+
+## Contratos inteligentes
+
+```powershell
+Set-Location H:\blockChain\contracts
+npm install
+npm run test
+npm run deploy:cadena
+```
+
+Solidity + Hardhat 3 con contratos de ejemplo `Counter` y `Registro` (documentos con
+`Ownable` de OpenZeppelin). Detalles en [`contracts/README.md`](contracts/README.md).
+
+## Demo educativa (legacy)
+
 Blockchain demo funcional en TypeScript puro (sin dependencias de runtime): bloques con
 prueba de trabajo, transacciones firmadas con Ed25519, API HTTP, CLI, persistencia en JSON
 y tests con el runner nativo de Node.
@@ -108,6 +146,20 @@ npm install
 npm test
 npm run typecheck
 ```
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) ejecuta en cada push y pull request:
+
+- Demo: `npm run typecheck` + 20 tests.
+- Contratos: `npm run typecheck` + 9 tests.
+- Red: valida `docker-compose.yml`, el entrypoint y la sintaxis de los scripts PowerShell.
+
+La prueba integral (`.github/workflows/integration.yml`) corre manualmente o cada lunes:
+genera y levanta la red Besu, despliega los contratos, ejecuta la demo y el smoke test EVM,
+y baja la red. Los logs se publican como artefacto si falla.
+
+Dependabot revisa semanalmente dependencias npm y GitHub Actions (`.github/dependabot.yml`).
 
 ## Límites conocidos
 

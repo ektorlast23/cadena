@@ -1,0 +1,40 @@
+---
+# Copia este archivo a inventory/hosts.yml y ajusta IPs, usuario y claves SSH.
+all:
+  vars:
+    ansible_user: cadena
+    ansible_ssh_private_key_file: ~/.ssh/cadena_ed25519
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=accept-new"
+
+  children:
+    validators:
+      hosts:
+        validator1:
+          ansible_host: 10.20.0.11
+          cadena_validator_index: 1
+          cadena_p2p_host: 10.20.0.11
+          cadena_hsm_key_alias: cadena-validator1
+          cadena_rpc_bind: 127.0.0.1
+          cadena_metrics_bind: 10.20.0.11
+        validator2:
+          ansible_host: 10.20.0.12
+          cadena_validator_index: 2
+          cadena_p2p_host: 10.20.0.12
+          cadena_hsm_key_alias: cadena-validator2
+          cadena_rpc_bind: 127.0.0.1
+          cadena_metrics_bind: 10.20.0.12
+        validator3:
+          ansible_host: 10.20.0.13
+          cadena_validator_index: 3
+          cadena_p2p_host: 10.20.0.13
+          cadena_hsm_key_alias: cadena-validator3
+          cadena_rpc_bind: 127.0.0.1
+          cadena_metrics_bind: 10.20.0.13
+        validator4:
+          ansible_host: 10.20.0.14
+          cadena_validator_index: 4
+          cadena_p2p_host: 10.20.0.14
+          cadena_hsm_key_alias: cadena-validator4
+          cadena_rpc_bind: 127.0.0.1
+          cadena_metrics_bind: 10.20.0.14

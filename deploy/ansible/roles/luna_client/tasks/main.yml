@@ -1,0 +1,123 @@
+---
+- name: Verificar origen del paquete Luna
+  ansible.builtin.assert:
+    that:
+      - luna_client_local_package | length > 0 or luna_client_package_url | length > 0
+    fail_msg: >-
+      Define luna_client_local_package (ruta en el nodo de control) o
+      luna_client_package_url con el RPM/DEB del Luna Universal Client.
+    quiet: true
+
+- name: Calcular nombre del paquete Luna
+  ansible.builtin.set_fact:
+    luna_client_package_file: >-
+      {{ luna_client_local_package | basename
+         if luna_client_local_package | length > 0
+         else luna_client_package_url | basename }}
+
+- name: Copiar paquete Luna al host
+  ansible.builtin.copy:
+    src: "{{ luna_client_local_package }}"
+    dest: "/tmp/{{ luna_client_package_file }}"
+    mode: "0600"
+  when: luna_client_local_package | length > 0
+
+- name: Descargar paquete Luna al host
+  ansible.builtin.get_url:
+    url: "{{ luna_client_package_url }}"
+    dest: "/tmp/{{ luna_client_package_file }}"
+    mode: "0600"
+    checksum: "{{ luna_client_package_checksum if luna_client_package_checksum | length > 0 else omit }}"
+  when: luna_client_local_package | length == 0
+
+- name: Instalar Luna Universal Client en Debian
+  ansible.builtin.apt:
+    deb: "/tmp/{{ luna_client_package_file }}"
+    state: present
+  when:
+    - ansible_os_family == 'Debian'
+    - luna_client_package_file.endswith('.deb')
+
+- name: Instalar Luna Universal Client en RedHat
+  ansible.builtin.dnf:
+    name: "/tmp/{{ luna_client_package_file }}"
+    state: present
+    disable_gpg_check: "{{ not luna_client_gpgcheck | bool }}"
+  when:
+    - ansible_os_family == 'RedHat'
+    - luna_client_package_file.endswith('.rpm')
+
+- name: Verificar formato de paquete Luna soportado
+  ansible.builtin.assert:
+    that:
+      - (ansible_os_family == 'Debian' and luna_client_package_file.endswith('.deb')) or
+        (ansible_os_family == 'RedHat' and luna_client_package_file.endswith('.rpm'))
+    fail_msg: "El paquete Luna no coincide con el formato del sistema operativo."
+    quiet: true
+
+- name: Crear grupo hsmusers
+  ansible.builtin.group:
+    name: hsmusers
+    system: true
+
+- name: Agregar usuario de Besu al grupo hsmusers
+  ansible.builtin.user:
+    name: "{{ cadena_user }}"
+    groups: hsmusers
+    append: true
+
+- name: Obtener GID del grupo hsmusers
+  ansible.builtin.command:
+    cmd: getent group hsmusers
+  register: luna_hsmusers_entry
+  changed_when: false
+
+- name: Guardar GID de hsmusers para el contenedor
+  ansible.builtin.set_fact:
+    luna_hsmusers_gid: "{{ luna_hsmusers_entry.stdout.split(':')[2] }}"
+
+- name: Verificar libreria PKCS#11 de Luna
+  ansible.builtin.stat:
+    path: "{{ luna_client_pkcs11_library }}"
+  register: luna_pkcs11_lib
+
+- name: Fallar si falta la libreria PKCS#11
+  ansible.builtin.assert:
+    that:
+      - luna_pkcs11_lib.stat.exists
+    fail_msg: >-
+      No existe {{ luna_client_pkcs11_library }}. Verifica que el Luna
+      Universal Client se haya instalado correctamente.
+
+- name: Verificar configuracion Chrystoki
+  ansible.builtin.stat:
+    path: /etc/Chrystoki.conf
+  register: luna_chrystoki
+
+- name: Fallar si falta Chrystoki.conf
+  ansible.builtin.assert:
+    that:
+      - luna_chrystoki.stat.exists
+    fail_msg: >-
+      No existe /etc/Chrystoki.conf. Configura el Luna Universal Client
+      (CMU o lunacm) antes de desplegar Besu.
+
+- name: Verificar conectividad con la particion Luna
+  ansible.builtin.command:
+    cmd: "pkcs11-tool --module {{ luna_client_pkcs11_library }} --list-slots"
+  become_user: "{{ cadena_user }}"
+  register: luna_slots
+  changed_when: false
+  when: luna_client_validate | bool
+
+- name: Verificar etiqueta de la particion Luna
+  ansible.builtin.assert:
+    that:
+      - luna_client_token_label in luna_slots.stdout
+    fail_msg: >-
+      La particion {{ luna_client_token_label }} no aparece en pkcs11-tool.
+      Revisa red, registro del cliente Luna y Chrystoki.conf.
+    quiet: true
+  when:
+    - luna_client_validate | bool
+    - luna_client_token_label | length > 0

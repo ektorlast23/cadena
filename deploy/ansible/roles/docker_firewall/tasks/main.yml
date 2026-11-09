@@ -1,0 +1,74 @@
+---
+- name: Configurar firewall de Docker para Besu
+  when: cadena_manage_firewall | bool
+  block:
+    - name: Instalar iptables
+      ansible.builtin.package:
+        name: "{{ 'iptables' if ansible_os_family == 'Debian' else 'iptables-nft' }}"
+        state: present
+
+    - name: Crear directorio de scripts de la cadena
+      ansible.builtin.file:
+        path: "{{ cadena_root }}/scripts"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Desplegar script de firewall de Docker
+      ansible.builtin.template:
+        src: cadena-docker-firewall.sh.j2
+        dest: "{{ cadena_docker_firewall_script }}"
+        owner: root
+        group: root
+        mode: "0750"
+      notify: reiniciar firewall docker
+
+    - name: Desplegar variables del firewall de Docker
+      ansible.builtin.template:
+        src: cadena-docker-firewall.env.j2
+        dest: "{{ cadena_docker_firewall_env }}"
+        owner: root
+        group: root
+        mode: "0600"
+      notify: reiniciar firewall docker
+
+    - name: Desplegar unidad systemd del firewall de Docker
+      ansible.builtin.template:
+        src: cadena-docker-firewall.service.j2
+        dest: "{{ cadena_docker_firewall_unit }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reiniciar firewall docker
+
+    - name: Habilitar y arrancar firewall de Docker
+      ansible.builtin.systemd:
+        name: "{{ cadena_docker_firewall_service }}"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Verificar cadena CADENA-FW
+      ansible.builtin.command:
+        cmd: iptables -S "{{ cadena_docker_firewall_chain }}"
+      register: cadena_docker_firewall_rules
+      changed_when: false
+      failed_when: cadena_docker_firewall_rules.rc != 0
+
+    - name: Verificar salto desde DOCKER-USER
+      ansible.builtin.command:
+        cmd: iptables -C DOCKER-USER -j "{{ cadena_docker_firewall_chain }}"
+      changed_when: false
+      failed_when: false
+      register: cadena_docker_firewall_jump
+
+    - name: Fallar si falta el salto desde DOCKER-USER
+      ansible.builtin.assert:
+        that:
+          - cadena_docker_firewall_jump.rc == 0
+        fail_msg: >-
+          DOCKER-USER no tiene el salto a {{ cadena_docker_firewall_chain }}.
+          Revisa el servicio {{ cadena_docker_firewall_service }} y que Docker
+          use iptables.
+        quiet: true

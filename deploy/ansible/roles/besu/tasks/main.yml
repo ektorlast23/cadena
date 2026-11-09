@@ -1,0 +1,161 @@
+---
+- name: Crear subdirectorios de configuracion de Besu
+  ansible.builtin.file:
+    path: "{{ cadena_root }}/besu/config/{{ item }}"
+    state: directory
+    owner: "{{ cadena_user }}"
+    group: "{{ cadena_group }}"
+    mode: "0750"
+  loop:
+    - auth
+    - tls
+    - permissions
+    - scripts
+
+- name: Copiar genesis
+  ansible.builtin.copy:
+    src: "{{ cadena_network_artifacts_dir }}/genesis.json"
+    dest: "{{ cadena_root }}/besu/config/genesis.json"
+    owner: "{{ cadena_user }}"
+    group: "{{ cadena_group }}"
+    mode: "0640"
+
+- name: Copiar permissioning de nodos y cuentas
+  ansible.builtin.copy:
+    src: "{{ cadena_network_artifacts_dir }}/{{ item }}"
+    dest: "{{ cadena_root }}/besu/config/permissions/{{ item }}"
+    owner: "{{ cadena_user }}"
+    group: "{{ cadena_group }}"
+    mode: "0640"
+  loop:
+    - permissions_config.toml
+    - static-nodes.json
+
+- name: Copiar clave publica JWT
+  ansible.builtin.copy:
+    src: "{{ cadena_pki_artifacts_dir }}/jwt-public.pem"
+    dest: "{{ cadena_root }}/besu/config/auth/jwt-public.pem"
+    owner: "{{ cadena_user }}"
+    group: "{{ cadena_group }}"
+    mode: "0644"
+
+- name: Copiar keystore TLS del nodo
+  ansible.builtin.copy:
+    src: "{{ cadena_pki_artifacts_dir }}/{{ inventory_hostname }}/server.p12"
+    dest: "{{ cadena_root }}/besu/config/tls/server.p12"
+    owner: root
+    group: "{{ cadena_group }}"
+    mode: "0640"
+
+- name: Copiar password del keystore TLS
+  ansible.builtin.copy:
+    src: "{{ cadena_pki_artifacts_dir }}/{{ inventory_hostname }}/keystore-password"
+    dest: "{{ cadena_root }}/besu/config/tls/keystore-password"
+    owner: root
+    group: "{{ cadena_group }}"
+    mode: "0640"
+
+- name: Copiar entrypoint de Besu con soporte HSM
+  ansible.builtin.copy:
+    src: "{{ cadena_entrypoint_src }}"
+    dest: "{{ cadena_root }}/besu/config/scripts/besu-entrypoint.sh"
+    owner: root
+    group: "{{ cadena_group }}"
+    mode: "0755"
+
+- name: Descargar plugin HSM de Besu
+  ansible.builtin.get_url:
+    url: "{{ besu_hsm_plugin_url }}"
+    dest: "{{ besu_hsm_plugin_download_dir }}/besu-hsm-plugin-{{ besu_hsm_plugin_version }}.zip"
+    checksum: "{{ besu_hsm_plugin_sha256 }}"
+    mode: "0644"
+    force: false
+
+- name: Extraer plugin HSM
+  ansible.builtin.unarchive:
+    src: "{{ besu_hsm_plugin_download_dir }}/besu-hsm-plugin-{{ besu_hsm_plugin_version }}.zip"
+    dest: "{{ cadena_root }}/plugins/extract"
+    remote_src: true
+    creates: "{{ cadena_root }}/plugins/extract/besu-hsm-plugin-{{ besu_hsm_plugin_version }}"
+    mode: "0755"
+
+- name: Localizar JAR del plugin HSM
+  ansible.builtin.find:
+    paths: "{{ cadena_root }}/plugins/extract/besu-hsm-plugin-{{ besu_hsm_plugin_version }}"
+    patterns: "besu-hsm-plugin-*.jar"
+    recurse: true
+  register: besu_hsm_plugin_jars
+
+- name: Verificar que el plugin HSM tenga un JAR
+  ansible.builtin.assert:
+    that:
+      - besu_hsm_plugin_jars.files | length > 0
+    fail_msg: "El ZIP del plugin HSM no contiene ningun JAR."
+    quiet: true
+
+- name: Instalar JAR del plugin HSM
+  ansible.builtin.copy:
+    src: "{{ besu_hsm_plugin_jars.files[0].path }}"
+    dest: "{{ besu_hsm_plugin_jar }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configurar PKCS#11 para Luna
+  ansible.builtin.template:
+    src: pkcs11.cfg.j2
+    dest: "{{ cadena_root }}/luna/pkcs11.cfg"
+    owner: root
+    group: "{{ cadena_group }}"
+    mode: "0640"
+
+- name: Escribir PIN de la particion Luna
+  ansible.builtin.copy:
+    content: "{{ vault_hsm_pin }}"
+    dest: "{{ cadena_root }}/secrets/hsm-pin"
+    owner: root
+    group: root
+    mode: "0400"
+  no_log: true
+
+- name: Renderizar docker-compose del validador
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ cadena_root }}/besu/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Desplegar Besu y verificar arranque
+  block:
+    - name: Ejecutar docker compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ cadena_root }}/besu"
+        state: present
+        pull: "{{ besu_pull_policy }}"
+      register: besu_compose
+
+    - name: Esperar a que el contenedor este en ejecucion
+      ansible.builtin.command:
+        cmd: docker compose ps --status running --services
+        chdir: "{{ cadena_root }}/besu"
+      register: besu_running
+      until: "'besu' in besu_running.stdout_lines"
+      retries: 30
+      delay: 5
+      changed_when: false
+
+  rescue:
+    - name: Mostrar logs de Besu si no arranca
+      ansible.builtin.command:
+        cmd: docker compose logs --tail=200
+        chdir: "{{ cadena_root }}/besu"
+      changed_when: false
+      failed_when: false
+
+    - name: Fallar con contexto
+      ansible.builtin.fail:
+        msg: >-
+          Besu no quedo en ejecucion. Revisa los logs mostrados arriba,
+          la conectividad con Luna y el PIN HSM.

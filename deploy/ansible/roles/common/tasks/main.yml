@@ -1,0 +1,235 @@
+---
+- name: Verificar familia de sistema operativo
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ['Debian', 'RedHat']
+    fail_msg: "Solo se soportan Debian/Ubuntu y RHEL/AlmaLinux/Rocky Linux."
+    quiet: true
+
+- name: Instalar paquetes base en Debian
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - jq
+      - unzip
+      - opensc
+      - chrony
+      - ufw
+      - auditd
+      - python3
+      - python3-apt
+      - rsync
+      - tar
+      - gzip
+      - logrotate
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == 'Debian'
+
+- name: Instalar paquetes base en RedHat
+  ansible.builtin.dnf:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg2
+      - jq
+      - unzip
+      - opensc
+      - chrony
+      - firewalld
+      - audit
+      - python3
+      - rsync
+      - tar
+      - gzip
+      - logrotate
+    state: present
+  when: ansible_os_family == 'RedHat'
+
+- name: Configurar zona horaria
+  community.general.timezone:
+    name: "{{ cadena_timezone }}"
+
+- name: Habilitar sincronizacion de hora
+  ansible.builtin.service:
+    name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
+    state: started
+    enabled: true
+
+- name: Aplicar parametros de kernel
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+    sysctl_file: /etc/sysctl.d/90-cadena.conf
+  loop:
+    - { name: vm.swappiness, value: "10" }
+    - { name: fs.file-max, value: "2097152" }
+    - { name: net.core.somaxconn, value: "4096" }
+    - { name: net.ipv4.tcp_keepalive_time, value: "300" }
+    - { name: net.ipv4.tcp_keepalive_intvl, value: "30" }
+    - { name: net.ipv4.tcp_keepalive_probes, value: "5" }
+
+- name: Configurar limites de file descriptors
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/90-cadena.conf
+    mode: "0644"
+    content: |
+      {{ cadena_user }} soft nofile 65535
+      {{ cadena_user }} hard nofile 65535
+      root soft nofile 65535
+      root hard nofile 65535
+
+- name: Crear grupo de servicio
+  ansible.builtin.group:
+    name: "{{ cadena_group }}"
+    system: true
+
+- name: Crear usuario de servicio
+  ansible.builtin.user:
+    name: "{{ cadena_user }}"
+    group: "{{ cadena_group }}"
+    system: true
+    create_home: false
+    home: "{{ cadena_root }}"
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Crear directorios de la cadena
+  ansible.builtin.file:
+    path: "{{ cadena_root }}/{{ item.path }}"
+    state: directory
+    owner: "{{ cadena_user }}"
+    group: "{{ cadena_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "", mode: "0750" }
+    - { path: "besu", mode: "0750" }
+    - { path: "besu/config", mode: "0750" }
+    - { path: "data", mode: "0750" }
+    - { path: "plugins", mode: "0755" }
+    - { path: "luna", mode: "0750" }
+    - { path: "secrets", mode: "0700" }
+    - { path: "backup", mode: "0700" }
+
+- name: Configurar UFW en Debian
+  when:
+    - cadena_manage_firewall | bool
+    - ansible_os_family == 'Debian'
+  block:
+    - name: Establecer politicas por defecto de UFW
+      community.general.ufw:
+        policy: "{{ item.policy }}"
+        direction: "{{ item.direction }}"
+      loop:
+        - { policy: deny, direction: incoming }
+        - { policy: allow, direction: outgoing }
+
+    - name: Permitir SSH solo desde administracion
+      community.general.ufw:
+        rule: allow
+        port: "{{ cadena_ssh_port }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+      loop: "{{ cadena_admin_cidrs }}"
+
+    - name: Permitir P2P solo entre validadores
+      community.general.ufw:
+        rule: allow
+        port: "{{ cadena_p2p_port }}"
+        proto: tcp
+        from_ip: "{{ hostvars[item].ansible_host | default(item) }}/32"
+      loop: "{{ groups['validators'] }}"
+
+    - name: Permitir RPC desde la red de aplicaciones
+      community.general.ufw:
+        rule: allow
+        port: "{{ besu_rpc_http_port }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+      loop: "{{ cadena_rpc_allowed_cidrs }}"
+
+    - name: Permitir metricas desde monitoreo
+      community.general.ufw:
+        rule: allow
+        port: "{{ besu_metrics_port }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+      loop: "{{ cadena_metrics_allowed_cidrs }}"
+
+    - name: Habilitar UFW despues de cargar las reglas
+      community.general.ufw:
+        state: enabled
+
+- name: Configurar firewalld en RedHat
+  when:
+    - cadena_manage_firewall | bool
+    - ansible_os_family == 'RedHat'
+  block:
+    - name: Habilitar firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Permitir SSH solo desde administracion
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family=ipv4 source address={{ item }}
+          port port={{ cadena_ssh_port }} protocol=tcp accept
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ cadena_admin_cidrs }}"
+
+    - name: Quitar SSH abierto a toda la red
+      ansible.posix.firewalld:
+        service: ssh
+        zone: public
+        permanent: true
+        immediate: true
+        state: disabled
+
+    - name: Permitir P2P solo entre validadores
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family=ipv4 source address={{ hostvars[item].ansible_host | default(item) }}
+          port port={{ cadena_p2p_port }} protocol=tcp accept
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ groups['validators'] }}"
+
+    - name: Permitir RPC desde la red de aplicaciones
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family=ipv4 source address={{ item }}
+          port port={{ besu_rpc_http_port }} protocol=tcp accept
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ cadena_rpc_allowed_cidrs }}"
+
+    - name: Permitir metricas desde monitoreo
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family=ipv4 source address={{ item }}
+          port port={{ besu_metrics_port }} protocol=tcp accept
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ cadena_metrics_allowed_cidrs }}"
+
+- name: Habilitar auditd
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: true

@@ -1,0 +1,6 @@
+ansible/inventory/hosts.yml
+ansible/group_vars/vault.yml
+ansible/group_vars/*vault*.yml
+!ansible/group_vars/vault.example.yml
+artifacts/*
+!artifacts/.gitkeep

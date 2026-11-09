@@ -1,0 +1,38 @@
+---
+- name: Renderizar plantillas para validacion
+  hosts: validator1
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/validators.yml
+    - ../roles/docker_firewall/defaults/main.yml
+  tasks:
+    - name: Crear directorio de render
+      ansible.builtin.file:
+        path: "{{ render_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Renderizar compose de Besu
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/besu/templates/docker-compose.yml.j2"
+        dest: "{{ render_dir }}/docker-compose.yml"
+
+    - name: Renderizar script de firewall
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/docker_firewall/templates/cadena-docker-firewall.sh.j2"
+        dest: "{{ render_dir }}/cadena-docker-firewall.sh"
+        mode: "0750"
+
+    - name: Renderizar variables de firewall
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/docker_firewall/templates/cadena-docker-firewall.env.j2"
+        dest: "{{ render_dir }}/cadena-docker-firewall.env"
+        mode: "0600"
+
+    - name: Renderizar unidad systemd de firewall
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/docker_firewall/templates/cadena-docker-firewall.service.j2"
+        dest: "{{ render_dir }}/cadena-docker-firewall.service"
+        mode: "0644"

@@ -1,0 +1,52 @@
+name: cadena
+
+services:
+  besu:
+    image: {{ besu_image }}
+    container_name: cadena-besu
+    restart: unless-stopped
+    stop_grace_period: 30s
+    user: "0:0"
+    group_add:
+      - "{{ luna_hsmusers_gid }}"
+    entrypoint: ["/bin/sh", "/config/scripts/besu-entrypoint.sh"]
+    environment:
+      BESU_LOG_LEVEL: "{{ besu_log_level }}"
+      BESU_EXTRA_ARGS: "{{ besu_extra_args }}"
+      RPC_HTTP_API: "{{ besu_rpc_http_api }}"
+      JAVA_OPTS: "{{ besu_java_opts }}"
+      SECURITY_MODULE: "hsm"
+      HSM_CONFIG_PATH: "/etc/besu/pkcs11.cfg"
+      HSM_PASSWORD_PATH: "/etc/besu/hsm-pin"
+      HSM_KEY_ALIAS: "{{ cadena_hsm_key_alias }}"
+      HSM_PROVIDER_TYPE: "native-pkcs11"
+      HSM_EC_CURVE: "secp256k1"
+      P2P_HOST: "{{ cadena_p2p_host }}"
+      HOST_ALLOWLIST: "{{ besu_host_allowlist | unique | join(',') }}"
+      RPC_HTTP_CORS_ORIGINS: "{{ besu_rpc_http_cors_origins }}"
+      LD_LIBRARY_PATH: "/usr/safenet/lunaclient/lib"
+    volumes:
+      - "{{ cadena_root }}/besu/config:/config:ro"
+      - "{{ cadena_root }}/data:/data"
+      - "{{ cadena_root }}/plugins:/opt/besu/plugins:ro"
+      - "{{ cadena_root }}/luna/pkcs11.cfg:/etc/besu/pkcs11.cfg:ro"
+      - "{{ cadena_root }}/secrets/hsm-pin:/etc/besu/hsm-pin:ro"
+      - "/usr/safenet/lunaclient:/usr/safenet/lunaclient:ro"
+      - "/etc/Chrystoki.conf:/etc/Chrystoki.conf:ro"
+    ports:
+      - "{{ besu_p2p_bind }}:30303:30303"
+      - "{{ besu_rpc_bind }}:8545:8545"
+      - "{{ besu_metrics_bind }}:9545:9545"
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
