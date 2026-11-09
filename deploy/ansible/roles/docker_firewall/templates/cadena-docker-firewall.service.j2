@@ -1,0 +1,15 @@
+[Unit]
+Description=Cadena Docker firewall (DOCKER-USER)
+Documentation=https://github.com/besu-eth/besu-hsm-plugin
+After=docker.service network-online.target
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ cadena_docker_firewall_env }}
+ExecStart={{ cadena_docker_firewall_script }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+---
+cadena_docker_firewall_chain: CADENA-FW
+cadena_docker_firewall_service: cadena-docker-firewall
+cadena_docker_firewall_script: "{{ cadena_root }}/scripts/cadena-docker-firewall.sh"
+cadena_docker_firewall_env: "{{ cadena_root }}/docker-firewall.env"
+cadena_docker_firewall_unit: /etc/systemd/system/cadena-docker-firewall.service

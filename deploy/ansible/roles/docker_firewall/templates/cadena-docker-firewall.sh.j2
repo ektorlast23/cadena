@@ -1,0 +1,141 @@
+#!/bin/sh
+set -eu
+
+CHAIN="${CHAIN:-{{ cadena_docker_firewall_chain }}}"
+TMP_CHAIN="${CHAIN}-tmp"
+P2P_PORT="${P2P_PORT:-30303}"
+RPC_PORT="${RPC_PORT:-8545}"
+METRICS_PORT="${METRICS_PORT:-9545}"
+P2P_SOURCES="${P2P_SOURCES:-}"
+RPC_SOURCES="${RPC_SOURCES:-}"
+METRICS_SOURCES="${METRICS_SOURCES:-}"
+DRY_RUN="${DRY_RUN:-0}"
+
+if [ "$DRY_RUN" != "1" ] && ! command -v iptables >/dev/null 2>&1; then
+  echo "ERROR: falta iptables." >&2
+  exit 1
+fi
+
+ipt() {
+  iptables -w 5 "$@"
+}
+
+run() {
+  if [ "$DRY_RUN" = "1" ]; then
+    printf 'iptables -w 5'
+    printf ' %s' "$@"
+    printf '\n'
+  else
+    ipt "$@"
+  fi
+}
+
+if [ "$DRY_RUN" != "1" ]; then
+  if ! ipt -n -L DOCKER-USER >/dev/null 2>&1; then
+    echo "ERROR: no existe la cadena DOCKER-USER. Docker debe estar instalado e iniciado." >&2
+    exit 1
+  fi
+fi
+
+add_sources() {
+  chain="$1"
+  port="$2"
+  sources="$3"
+  old_ifs="$IFS"
+  IFS=','
+  for source in $sources; do
+    source="$(printf '%s' "$source" | tr -d '[:space:]')"
+    if [ -n "$source" ]; then
+      run -A "$chain" -s "$source" -p tcp --dport "$port" -j ACCEPT
+    fi
+  done
+  IFS="$old_ifs"
+}
+
+build_chain() {
+  chain="$1"
+  if [ "$DRY_RUN" = "1" ]; then
+    printf 'iptables -w 5 -N %s 2>/dev/null || true\n' "$chain"
+    printf 'iptables -w 5 -F %s\n' "$chain"
+  else
+    ipt -N "$chain" 2>/dev/null || true
+    ipt -F "$chain"
+  fi
+
+  run -A "$chain" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  add_sources "$chain" "$P2P_PORT" "$P2P_SOURCES"
+  add_sources "$chain" "$RPC_PORT" "$RPC_SOURCES"
+  add_sources "$chain" "$METRICS_PORT" "$METRICS_SOURCES"
+
+  for port in "$P2P_PORT" "$RPC_PORT" "$METRICS_PORT"; do
+    run -A "$chain" -p tcp --dport "$port" -j DROP
+  done
+
+  run -A "$chain" -j RETURN
+}
+
+cleanup_duplicate_jumps() {
+  target="$1"
+  if [ "$DRY_RUN" = "1" ]; then
+    printf '# limpiar jumps duplicados a %s\n' "$target"
+  else
+    while true; do
+      line="$(ipt -S DOCKER-USER | grep -n -- "-j $target\$" | tail -n 1 | cut -d: -f1)"
+      [ -n "$line" ] || break
+      [ "$line" -eq 2 ] && break
+      ipt -D DOCKER-USER "$((line - 1))"
+    done
+  fi
+}
+
+replace_jump() {
+  target="$1"
+  old="$2"
+  run -I DOCKER-USER 1 -j "$target"
+  if [ -n "$old" ]; then
+    if [ "$DRY_RUN" = "1" ]; then
+      printf 'while iptables -w 5 -C DOCKER-USER -j %s 2>/dev/null; do iptables -w 5 -D DOCKER-USER -j %s; done\n' "$old" "$old"
+    else
+      while ipt -C DOCKER-USER -j "$old" 2>/dev/null; do
+        ipt -D DOCKER-USER -j "$old"
+      done
+    fi
+  fi
+  cleanup_duplicate_jumps "$target"
+}
+
+flush_chain() {
+  chain="$1"
+  if [ "$DRY_RUN" = "1" ]; then
+    printf 'iptables -w 5 -F %s\n' "$chain"
+  else
+    ipt -F "$chain"
+  fi
+}
+
+if [ "$DRY_RUN" = "1" ]; then
+  active=""
+else
+  first_rule="$(ipt -S DOCKER-USER | grep -E -- "-j ($TMP_CHAIN|$CHAIN)\$" | head -n 1)"
+  case "$first_rule" in
+    *"-j $TMP_CHAIN") active="$TMP_CHAIN" ;;
+    *"-j $CHAIN") active="$CHAIN" ;;
+    *) active="" ;;
+  esac
+fi
+
+if [ "$active" = "$TMP_CHAIN" ]; then
+  build_chain "$CHAIN"
+  replace_jump "$CHAIN" "$TMP_CHAIN"
+else
+  build_chain "$TMP_CHAIN"
+  if [ "$active" = "$CHAIN" ]; then
+    replace_jump "$TMP_CHAIN" "$CHAIN"
+  else
+    replace_jump "$TMP_CHAIN" ""
+  fi
+  build_chain "$CHAIN"
+  replace_jump "$CHAIN" "$TMP_CHAIN"
+fi
+
+flush_chain "$TMP_CHAIN"

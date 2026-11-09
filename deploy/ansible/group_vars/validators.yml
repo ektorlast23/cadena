@@ -1,0 +1,5 @@
+---
+cadena_role: validator
+cadena_p2p_port: 30303
+besu_rpc_http_port: 8545
+besu_metrics_port: 9545

@@ -1,0 +1,59 @@
+---
+- name: Validar variables y artefactos antes de tocar las VMs
+  hosts: validators
+  gather_facts: false
+  tasks:
+    - name: Verificar variables obligatorias
+      ansible.builtin.assert:
+        that:
+          - cadena_validator_index | default(0) | int >= 1
+          - cadena_p2p_host | default('') | length > 0
+          - vault_hsm_pin | default('') | length > 0
+          - cadena_hsm_key_alias | default('') | length > 0
+        fail_msg: >-
+          Faltan variables de inventario o el PIN HSM. Copia
+          group_vars/vault.example.yml a group_vars/vault.yml, cifralo con
+          ansible-vault y ejecuta con --ask-vault-pass.
+        quiet: true
+
+    - name: Verificar IPs IPv4 de los validadores
+      ansible.builtin.assert:
+        that:
+          - hostvars[item].ansible_host is defined
+          - hostvars[item].ansible_host is match('^([0-9]{1,3}\\.){3}[0-9]{1,3}$')
+        fail_msg: >-
+          El inventario debe definir ansible_host como IPv4 para
+          {{ item }}; el firewall P2P usa esas IPs exactas.
+        quiet: true
+      loop: "{{ groups['validators'] }}"
+
+    - name: Verificar artefactos de red y PKI en el nodo de control
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      delegate_to: localhost
+      loop:
+        - "{{ cadena_network_artifacts_dir }}/genesis.json"
+        - "{{ cadena_network_artifacts_dir }}/permissions_config.toml"
+        - "{{ cadena_network_artifacts_dir }}/static-nodes.json"
+        - "{{ cadena_pki_artifacts_dir }}/jwt-public.pem"
+        - "{{ cadena_pki_artifacts_dir }}/{{ inventory_hostname }}/server.p12"
+        - "{{ cadena_pki_artifacts_dir }}/{{ inventory_hostname }}/keystore-password"
+      register: cadena_artifacts
+
+    - name: Fallar si falta algun artefacto
+      ansible.builtin.assert:
+        that:
+          - cadena_artifacts.results | selectattr('stat.exists', 'equalto', false) | list | length == 0
+        fail_msg: "Falta un artefacto de red o PKI. Ejecuta los scripts de bootstrap y PKI."
+        quiet: true
+
+- name: Configurar validadores Besu con claves en Thales Luna
+  hosts: validators
+  become: true
+  gather_facts: true
+  roles:
+    - common
+    - docker
+    - docker_firewall
+    - luna_client
+    - besu

@@ -1,0 +1,6 @@
+---
+- name: reiniciar firewall docker
+  ansible.builtin.systemd:
+    name: "{{ cadena_docker_firewall_service }}"
+    state: restarted
+    daemon_reload: true

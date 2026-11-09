@@ -1,0 +1,52 @@
+---
+cadena_domain: cadena.internal
+cadena_root: /opt/cadena
+cadena_user: besu
+cadena_group: besu
+cadena_timezone: UTC
+cadena_manage_firewall: true
+cadena_ssh_port: 22
+
+cadena_admin_cidrs:
+  - 10.20.0.0/24
+# P2P se limita a las IPs exactas de groups['validators']; no hay CIDR P2P por defecto.
+cadena_rpc_allowed_cidrs:
+  - 10.20.0.0/24
+cadena_metrics_allowed_cidrs:
+  - 10.20.0.0/24
+
+cadena_repo_root: "{{ playbook_dir | dirname | dirname }}"
+cadena_network_artifacts_dir: "{{ playbook_dir | dirname }}/artifacts/network"
+cadena_pki_artifacts_dir: "{{ playbook_dir | dirname }}/artifacts/pki"
+
+luna_client_local_package: ""
+luna_client_package_url: ""
+luna_client_package_checksum: ""
+luna_client_pkcs11_library: /usr/safenet/lunaclient/lib/libCryptoki2_64.so
+luna_client_slot: 0
+luna_client_token_label: cadena-validators
+luna_client_validate: true
+
+besu_image: hyperledger/besu:26.10.1
+besu_java_opts: "-Xmx2g"
+besu_log_level: INFO
+besu_rpc_http_api: "ETH,NET,QBFT,WEB3,TXPOOL"
+besu_extra_args: ""
+besu_pull_policy: missing
+besu_rpc_http_cors_origins: ""
+
+besu_hsm_plugin_version: "26.10.1"
+besu_hsm_plugin_url: >-
+  https://github.com/besu-eth/besu-hsm-plugin/releases/download/{{ besu_hsm_plugin_version }}/besu-hsm-plugin-{{ besu_hsm_plugin_version }}.zip
+# SHA-256 del release 26.10.1. Actualizar junto con besu_hsm_plugin_version.
+besu_hsm_plugin_sha256: "sha256:0f4490cf0d4dcfdc8b1caa1a435e17bed0c932436c95d0736e36dcbf6c3700bc"
+
+besu_host_allowlist:
+  - localhost
+  - 127.0.0.1
+  - "{{ inventory_hostname }}"
+  - "{{ inventory_hostname }}.{{ cadena_domain }}"
+  - "{{ cadena_p2p_host }}"
+besu_rpc_bind: "{{ cadena_rpc_bind | default('127.0.0.1') }}"
+besu_metrics_bind: "{{ cadena_metrics_bind | default('127.0.0.1') }}"
+besu_p2p_bind: "{{ cadena_p2p_bind | default('0.0.0.0') }}"

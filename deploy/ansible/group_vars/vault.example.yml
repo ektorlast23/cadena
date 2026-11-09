@@ -1,0 +1,12 @@
+---
+# Copia a group_vars/vault.yml y cifra con:
+#   ansible-vault encrypt group_vars/vault.yml
+#
+# No commitees el archivo cifrado con secretos reales.
+
+# Password del rol Crypto Officer (CO) de la particion Luna.
+# Es el PIN que Besu usa para C_Login(CKU_USER).
+vault_hsm_pin: "REPLACE_ME"
+
+# Reservado para la fase Web3Signer + Vault.
+vault_vault_root_token: "REPLACE_ME"

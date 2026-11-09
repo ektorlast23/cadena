@@ -1,0 +1,17 @@
+---
+besu_image: hyperledger/besu:26.10.1
+besu_java_opts: "-Xmx2g"
+besu_log_level: INFO
+besu_rpc_http_api: "ETH,NET,QBFT,WEB3,TXPOOL"
+besu_extra_args: ""
+besu_pull_policy: missing
+besu_rpc_http_cors_origins: ""
+
+besu_hsm_plugin_version: "26.10.1"
+besu_hsm_plugin_url: >-
+  https://github.com/besu-eth/besu-hsm-plugin/releases/download/{{ besu_hsm_plugin_version }}/besu-hsm-plugin-{{ besu_hsm_plugin_version }}.zip
+besu_hsm_plugin_sha256: "sha256:0f4490cf0d4dcfdc8b1caa1a435e17bed0c932436c95d0736e36dcbf6c3700bc"
+besu_hsm_plugin_download_dir: /tmp
+besu_hsm_plugin_jar: "{{ cadena_root }}/plugins/besu-hsm-plugin.jar"
+
+cadena_entrypoint_src: "{{ cadena_repo_root }}/network/scripts/besu-entrypoint.sh"
